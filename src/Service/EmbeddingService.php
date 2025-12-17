@@ -102,4 +102,34 @@ class EmbeddingService
 		return $aEmbeddings;
 	}
 
+	// maybe a new function similar to getEmbeddingsForTexts but for chunked texts? 2d array input to create a document with multiple chunks?
+
+	public function GetEmbeddingsForChunkedTexts(array $aChunkedTexts): array
+	{
+		$aArrayDocuments = [];
+		foreach ($aChunkedTexts as $i => $aText){
+			foreach ($aText as $chunkNumber => $sText){
+				$oDoc = new Document();
+				$oDoc->content = $sText;
+				$oDoc->chunkNumber = $chunkNumber;
+				$aArrayDocuments[$i][$chunkNumber] = $oDoc;
+			}
+		}
+
+		foreach ($aArrayDocuments as $i => $oDoc){
+			$aArrayDocuments[$i] = $this->embeddingGenerator->embedDocuments($oDoc);
+		}
+
+		$aArrayEmbeddings = [];
+		foreach ($aArrayDocuments as $i => $aDocs){
+			foreach ($aDocs as $chunkNumber => $oDoc){
+				$aArrayEmbeddings[$i][$chunkNumber] = $oDoc->embedding;
+			}
+		}
+
+		return $aArrayEmbeddings;
+
+	}
+
+
 }
