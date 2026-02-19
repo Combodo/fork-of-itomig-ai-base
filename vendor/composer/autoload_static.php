@@ -268,6 +268,7 @@ class ComposerStaticInitd8be68bed68b2e666ec5f78f725945c1
         'Itomig\\iTop\\Extension\\AIBase\\Exception\\NonExistingModelException' => __DIR__ . '/../..' . '/src/Exception/NonExistingModelException.php',
         'Itomig\\iTop\\Extension\\AIBase\\Exception\\NotImplementedException' => __DIR__ . '/../..' . '/src/Exception/NotImplementedException.php',
         'Itomig\\iTop\\Extension\\AIBase\\Generator\\AbstractOvhAIEmbeddingGenerator' => __DIR__ . '/../..' . '/src/Generator/AbstractOvhAIEmbeddingGenerator.php',
+        'Itomig\\iTop\\Extension\\AIBase\\Generator\\OpenAICompatibleGenerator' => __DIR__ . '/../..' . '/src/Generator/OpenAICompatibleGenerator.php',
         'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEBaseEnV15EmbeddingGenerator' => __DIR__ . '/../..' . '/src/Generator/OvhAIBGEBaseEnV15EmbeddingGenerator.php',
         'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEM3EmbeddingGenerator' => __DIR__ . '/../..' . '/src/Generator/OvhAIBGEM3EmbeddingGenerator.php',
         'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEMultilingualGemma2EmbeddingGenerator' => __DIR__ . '/../..' . '/src/Generator/OvhAIBGEMultilingualGemma2EmbeddingGenerator.php',

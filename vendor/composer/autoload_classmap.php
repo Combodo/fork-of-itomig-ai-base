@@ -133,6 +133,7 @@ return array(
     'Itomig\\iTop\\Extension\\AIBase\\Exception\\NonExistingModelException' => $baseDir . '/src/Exception/NonExistingModelException.php',
     'Itomig\\iTop\\Extension\\AIBase\\Exception\\NotImplementedException' => $baseDir . '/src/Exception/NotImplementedException.php',
     'Itomig\\iTop\\Extension\\AIBase\\Generator\\AbstractOvhAIEmbeddingGenerator' => $baseDir . '/src/Generator/AbstractOvhAIEmbeddingGenerator.php',
+    'Itomig\\iTop\\Extension\\AIBase\\Generator\\OpenAICompatibleGenerator' => $baseDir . '/src/Generator/OpenAICompatibleGenerator.php',
     'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEBaseEnV15EmbeddingGenerator' => $baseDir . '/src/Generator/OvhAIBGEBaseEnV15EmbeddingGenerator.php',
     'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEM3EmbeddingGenerator' => $baseDir . '/src/Generator/OvhAIBGEM3EmbeddingGenerator.php',
     'Itomig\\iTop\\Extension\\AIBase\\Generator\\OvhAIBGEMultilingualGemma2EmbeddingGenerator' => $baseDir . '/src/Generator/OvhAIBGEMultilingualGemma2EmbeddingGenerator.php',

@@ -6,7 +6,6 @@
 
 namespace Itomig\iTop\Extension\AIBase\Engine;
 
-use Combodo\iTop\AmineTest\Helper\AmineTestLog;
 use Itomig\iTop\Extension\AIBase\Config\OvhAIConfig;
 use Itomig\iTop\Extension\AIBase\Exception\NonExistingModelException;
 use Itomig\iTop\Extension\AIBase\Exception\NotImplementedException;

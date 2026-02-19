@@ -22,7 +22,7 @@ class EmbeddingService
 
 	private EmbeddingGeneratorInterface $embeddingGenerator;
 
-	public function __construct(?iAIEngineInterface $engine = null)
+	public function __construct(?iAIEngineInterface $engine = null,?string $sModel = null,?int $iDim = null)
 	{
 		if(is_null($engine))
 		{
@@ -42,7 +42,7 @@ class EmbeddingService
 
 		}
 		$this->oAIEngine = $engine;
-		$this->embeddingGenerator = $this->oAIEngine->GetEmbeddingGenerator();
+		$this->embeddingGenerator = $this->oAIEngine->GetEmbeddingGenerator($sModel,$iDim);
 	}
 
 
