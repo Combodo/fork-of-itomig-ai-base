@@ -36,210 +36,210 @@ use const PHP_SAPI;
 
 final class LibEncoder implements Encoder, Stringable
 {
-    private const FFI_SCOPE = 'tiktoken';
+	private const FFI_SCOPE = 'tiktoken';
 
-    private static LibFFIProxy|null $ffi = null;
-    private static string|null $libPath = null;
-    private CData $bpe;
+	private static LibFFIProxy|null $ffi = null;
+	private static string|null $libPath = null;
+	private CData $bpe;
 
-    /**
-     * @param non-empty-string $vocabFile
-     * @param non-empty-string $pattern
-     */
-    public function __construct(private string $encoding, string $vocabFile, string $pattern)
-    {
-        if (! file_exists($vocabFile)) {
-            throw new InvalidArgumentException(sprintf('The vocab file %s does not exist', $vocabFile));
-        }
+	/**
+	 * @param non-empty-string $vocabFile
+	 * @param non-empty-string $pattern
+	 */
+	public function __construct(private string $encoding, string $vocabFile, string $pattern)
+	{
+		if (! file_exists($vocabFile)) {
+			throw new InvalidArgumentException(sprintf('The vocab file %s does not exist', $vocabFile));
+		}
 
-        $ptr = self::getFFI()->init($pattern, $vocabFile);
+		$ptr = self::getFFI()->init($pattern, $vocabFile);
 
-        if ($ptr === null) {
-            throw new LibError(self::getFFI()->last_error_message() ?? 'Initialization failed');
-        }
+		if ($ptr === null) {
+			throw new LibError(self::getFFI()->last_error_message() ?? 'Initialization failed');
+		}
 
-        $this->bpe = $ptr;
-    }
+		$this->bpe = $ptr;
+	}
 
-    public function __destruct()
-    {
-        self::getFFI()->destroy($this->bpe);
-    }
+	public function __destruct()
+	{
+		self::getFFI()->destroy($this->bpe);
+	}
 
-    #[Override]
-    public function getEncoding(): string
-    {
-        return $this->encoding;
-    }
+	#[Override]
+	public function getEncoding(): string
+	{
+		return $this->encoding;
+	}
 
-    #[Override]
-    public function __toString(): string
-    {
-        return sprintf('LibEncoder(encoding="%s")', $this->encoding);
-    }
+	#[Override]
+	public function __toString(): string
+	{
+		return sprintf('LibEncoder(encoding="%s")', $this->encoding);
+	}
 
-    /**
-     * {@inheritDoc}
-     */
-    #[Override]
-    public function encode(string $text): array
-    {
-        if ($text === '') {
-            return [];
-        }
+	/**
+	 * {@inheritDoc}
+	 */
+	#[Override]
+	public function encode(string $text): array
+	{
+		if ($text === '') {
+			return [];
+		}
 
-        $tokens = self::getFFI()->encode($this->bpe, $text);
+		$tokens = self::getFFI()->encode($this->bpe, $text);
 
-        if ($tokens === null) {
-            throw new LibError(self::getFFI()->last_error_message() ?? 'Encoding failed');
-        }
+		if ($tokens === null) {
+			throw new LibError(self::getFFI()->last_error_message() ?? 'Encoding failed');
+		}
 
-        $res = [];
+		$res = [];
 
-        for ($i = 0; $i < $tokens->len; $i++) {
-            $res[] = $tokens->data[$i];
-        }
+		for ($i = 0; $i < $tokens->len; $i++) {
+			$res[] = $tokens->data[$i];
+		}
 
-        self::getFFI()->free_tokens($tokens);
+		self::getFFI()->free_tokens($tokens);
 
-        return $res;
-    }
+		return $res;
+	}
 
-    /**
-     * {@inheritDoc}
-     */
-    #[Override]
-    public function encodeInChunks(string $text, int $maxTokensPerChunk): array
-    {
-        throw new BadMethodCallException('Not implemented yet');
-    }
+	/**
+	 * {@inheritDoc}
+	 */
+	#[Override]
+	public function encodeInChunks(string $text, int $maxTokensPerChunk): array
+	{
+		throw new BadMethodCallException('Not implemented yet');
+	}
 
-    /**
-     * {@inheritDoc}
-     */
-    #[Override]
-    public function decode(array $tokens): string
-    {
-        if (count($tokens) === 0) {
-            return '';
-        }
+	/**
+	 * {@inheritDoc}
+	 */
+	#[Override]
+	public function decode(array $tokens): string
+	{
+		if (count($tokens) === 0) {
+			return '';
+		}
 
-        $ranks = self::getFFI()->new(sprintf('uint32_t[%d]', count($tokens)));
-        $index = 0;
+		$ranks = self::getFFI()->new(sprintf('uint32_t[%d]', count($tokens)));
+		$index = 0;
 
-        foreach ($tokens as $token) {
-            $ranks[$index] = $token;
-            $index++;
-        }
+		foreach ($tokens as $token) {
+			$ranks[$index] = $token;
+			$index++;
+		}
 
-        $result = self::getFFI()->decode($this->bpe, $ranks, count($tokens));
+		$result = self::getFFI()->decode($this->bpe, $ranks, count($tokens));
 
-        if ($result === null) {
-            throw new LibError(self::getFFI()->last_error_message() ?? 'Decoding failed');
-        }
+		if ($result === null) {
+			throw new LibError(self::getFFI()->last_error_message() ?? 'Decoding failed');
+		}
 
-        return $result;
-    }
+		return $result;
+	}
 
-    private static function getFFI(): LibFFIProxy
-    {
-        if (self::$ffi === null) {
-            try {
-                self::$ffi = new LibFFIProxy(FFI::scope(self::FFI_SCOPE));
-            } catch (FFIException $e) {
-                if (ini_get('ffi.enable') === 'preload' && PHP_SAPI !== 'cli') {
-                    throw new RuntimeException(
-                        sprintf(
-                            'FFI_SCOPE "%s" not found (ffi.enable=preload requires you to call %s::preload() in preload script)',
-                            self::FFI_SCOPE,
-                            self::class,
-                        ),
-                        previous: $e,
-                    );
-                }
+	private static function getFFI(): LibFFIProxy
+	{
+		if (self::$ffi === null) {
+			try {
+				self::$ffi = new LibFFIProxy(FFI::scope(self::FFI_SCOPE));
+			} catch (FFIException $e) {
+				if (ini_get('ffi.enable') === 'preload' && PHP_SAPI !== 'cli') {
+					throw new RuntimeException(
+						sprintf(
+							'FFI_SCOPE "%s" not found (ffi.enable=preload requires you to call %s::preload() in preload script)',
+							self::FFI_SCOPE,
+							self::class,
+						),
+						previous: $e,
+					);
+				}
 
-                self::$ffi = new LibFFIProxy(FFI::cdef(self::loadCDef(), self::getLibFile()));
-            }
-        }
+				self::$ffi = new LibFFIProxy(FFI::cdef(self::loadCDef(), self::getLibFile()));
+			}
+		}
 
-        return self::$ffi;
-    }
+		return self::$ffi;
+	}
 
-    public static function init(string|null $libPath = null): void
-    {
-        self::$libPath = $libPath;
-    }
+	public static function init(string|null $libPath = null): void
+	{
+		self::$libPath = $libPath;
+	}
 
-    public static function preload(string|null $libPath = null): void
-    {
-        self::init($libPath);
+	public static function preload(string|null $libPath = null): void
+	{
+		self::init($libPath);
 
-        $tmpFile = tempnam(sys_get_temp_dir(), 'tiktoken-ffi');
+		$tmpFile = tempnam(sys_get_temp_dir(), 'tiktoken-ffi');
 
-        if ($tmpFile === false) {
-            throw new RuntimeException('Could not create temporary file');
-        }
+		if ($tmpFile === false) {
+			throw new RuntimeException('Could not create temporary file');
+		}
 
-        try {
-            $library = sprintf('#define FFI_LIB "%s"', self::getLibFile()) . "\n";
-            file_put_contents($tmpFile, $library . self::loadCDef());
-            FFI::load($tmpFile);
-        } finally {
-            unlink($tmpFile);
-        }
-    }
+		try {
+			$library = sprintf('#define FFI_LIB "%s"', self::getLibFile())."\n";
+			file_put_contents($tmpFile, $library.self::loadCDef());
+			FFI::load($tmpFile);
+		} finally {
+			unlink($tmpFile);
+		}
+	}
 
-    private static function loadCDef(): string
-    {
-        $headerFile = dirname(__DIR__) . '/lib.h';
+	private static function loadCDef(): string
+	{
+		$headerFile = dirname(__DIR__).'/lib.h';
 
-        if (! file_exists($headerFile)) {
-            throw new RuntimeException(sprintf('File "%s" does not exist', $headerFile));
-        }
+		if (! file_exists($headerFile)) {
+			throw new RuntimeException(sprintf('File "%s" does not exist', $headerFile));
+		}
 
-        $cdef = file_get_contents($headerFile);
+		$cdef = file_get_contents($headerFile);
 
-        if ($cdef === false) {
-            throw new RuntimeException(sprintf('Unable to read file %s', $headerFile));
-        }
+		if ($cdef === false) {
+			throw new RuntimeException(sprintf('Unable to read file %s', $headerFile));
+		}
 
-        return $cdef;
-    }
+		return $cdef;
+	}
 
-    private static function getLibFile(): string
-    {
-        $filename = match (PHP_OS_FAMILY) {
-            'Darwin' => 'libtiktoken_php.dylib',
-            'Windows' => 'tiktoken_php.dll',
-            default => 'libtiktoken_php.so',
-        };
+	private static function getLibFile(): string
+	{
+		$filename = match (PHP_OS_FAMILY) {
+			'Darwin' => 'libtiktoken_php.dylib',
+			'Windows' => 'tiktoken_php.dll',
+			default => 'libtiktoken_php.so',
+		};
 
-        foreach (self::resolveLibPaths() as $path) {
-            $libFile = $path . DIRECTORY_SEPARATOR . $filename;
+		foreach (self::resolveLibPaths() as $path) {
+			$libFile = $path.DIRECTORY_SEPARATOR.$filename;
 
-            if (file_exists($libFile)) {
-                return $libFile;
-            }
-        }
+			if (file_exists($libFile)) {
+				return $libFile;
+			}
+		}
 
-        throw new RuntimeException(sprintf('Lib %s file not found', $filename));
-    }
+		throw new RuntimeException(sprintf('Lib %s file not found', $filename));
+	}
 
-    /** @return iterable<string> */
-    private static function resolveLibPaths(): iterable
-    {
-        if (self::$libPath !== null) {
-            yield self::$libPath;
-        }
+	/** @return iterable<string> */
+	private static function resolveLibPaths(): iterable
+	{
+		if (self::$libPath !== null) {
+			yield self::$libPath;
+		}
 
-        foreach (['TIKTOKEN_LIB_PATH', 'LD_LIBRARY_PATH'] as $envVar) {
-            $value = getenv($envVar);
+		foreach (['TIKTOKEN_LIB_PATH', 'LD_LIBRARY_PATH'] as $envVar) {
+			$value = getenv($envVar);
 
-            if (! is_string($value)) {
-                continue;
-            }
+			if (! is_string($value)) {
+				continue;
+			}
 
-            yield from explode(PATH_SEPARATOR, $value);
-        }
-    }
+			yield from explode(PATH_SEPARATOR, $value);
+		}
+	}
 }

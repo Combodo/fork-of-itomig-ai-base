@@ -112,4 +112,4 @@ composer bench
 
 ## License
 
-[MIT](./LICENSE)
+[MIT](LICENSE)
