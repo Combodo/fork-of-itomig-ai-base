@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (C) 2024 ITOMIG GmbH
  * @license http://opensource.org/licenses/AGPL-3.0
@@ -47,12 +48,12 @@ class AIService
 	/**
 	 * Default number of tool call round-trips before forcing a text response.
 	 */
-	private const MAX_TOOL_ROUNDS_DEFAULT = 5;
+	private const MAX_TOOL_ROUNDS_DEFAULT = 20;
 
 	/**
 	 * @var string[] $aDefaultSystemPrompts
 	 */
-	const DEFAULT_SYSTEM_INSTRUCTIONS = [
+	public const DEFAULT_SYSTEM_INSTRUCTIONS = [
 		'translate' => 'You are a professional translator.
         You translate any text into the language with the following locale identifier: %1$s. 
         Next, you will recieve the text to be translated. You provide a translation only, no additional explanations. 
@@ -70,7 +71,7 @@ class AIService
         5. Do not add anything (like explanations for example) before the improved text. 
         
         Output the improved text as the answer.',
-		'default' => 'You are a helpful assistant. You answer inquiries politely, precisely, and briefly.'
+		'default' => 'You are a helpful assistant. You answer inquiries politely, precisely, and briefly.',
 	];
 
 	protected ?iAIEngineInterface $oAIEngine;
@@ -117,23 +118,19 @@ class AIService
 	 * @param string[] $aLanguages
 	 * @throws AIConfigurationException
 	 */
-	public function __construct(?iAIEngineInterface $engine = null , $aSystemInstructions = [], $aLanguages = [])
+	public function __construct(?iAIEngineInterface $engine = null, $aSystemInstructions = [], $aLanguages = [])
 	{
-		if(is_null($engine))
-		{
+		if (is_null($engine)) {
 			$sAIEngineName = MetaModel::GetModuleSetting(AIBaseHelper::MODULE_CODE, 'ai_engine.name', '');
 			try {
 				$AIEngineClass = self::GetAIEngineClass($sAIEngineName);
-			}
-			catch (\ReflectionException $e)
-			{
+			} catch (\ReflectionException $e) {
 				throw new AIConfigurationException('Unable to find AIEngineClass with name ="'.$sAIEngineName.'"', null, '', $e);
 			}
-			if(empty($AIEngineClass))
-			{
+			if (empty($AIEngineClass)) {
 				throw new AIConfigurationException('Unable to find AIEngineClass with name ="'.$sAIEngineName.'"');
 			}
-			$engine= $AIEngineClass::GetEngine(MetaModel::GetModuleSetting(AIBaseHelper::MODULE_CODE, 'ai_engine.configuration', ''));
+			$engine = $AIEngineClass::GetEngine(MetaModel::GetModuleSetting(AIBaseHelper::MODULE_CODE, 'ai_engine.configuration', ''));
 
 			/* if only _some_ system prompts are configured, use defaults for the others, in this order:
 				1. explicitly given in the constructor take precedence over
@@ -144,7 +141,7 @@ class AIService
 		}
 		$this->oAIEngine = $engine;
 
-		if(empty($aLanguages)){
+		if (empty($aLanguages)) {
 			$aLanguages = ['DE DE', 'EN US', 'FR FR'];
 		}
 		$this->aLanguages = $aLanguages;
@@ -195,13 +192,13 @@ class AIService
 				try {
 					$oProvider = new $sProviderClass();
 					$this->registerProvider($oProvider);
-					IssueLog::Debug(__METHOD__ . ": Discovered tools from provider " . $sProviderClass, AIBaseHelper::MODULE_CODE);
+					IssueLog::Debug(__METHOD__.": Discovered tools from provider ".$sProviderClass, AIBaseHelper::MODULE_CODE);
 				} catch (\Exception $e) {
-					IssueLog::Warning(__METHOD__ . ": Failed to instantiate tool provider " . $sProviderClass . ": " . $e->getMessage(), AIBaseHelper::MODULE_CODE);
+					IssueLog::Warning(__METHOD__.": Failed to instantiate tool provider ".$sProviderClass.": ".$e->getMessage(), AIBaseHelper::MODULE_CODE);
 				}
 			}
 		} catch (\Exception $e) {
-			IssueLog::Warning(__METHOD__ . ": Failed to discover tool providers: " . $e->getMessage(), AIBaseHelper::MODULE_CODE);
+			IssueLog::Warning(__METHOD__.": Failed to discover tool providers: ".$e->getMessage(), AIBaseHelper::MODULE_CODE);
 		}
 	}
 
@@ -211,7 +208,8 @@ class AIService
 	 * @param string $sInstructionName The name of the new system instruction.
 	 * @param string $sInstruction The content of the new system instruction.
 	 */
-	public function addSystemInstruction(string $sInstructionName, string $sInstruction): void {
+	public function addSystemInstruction(string $sInstructionName, string $sInstruction): void
+	{
 		$this->aSystemInstructions[$sInstructionName] = $sInstruction;
 	}
 
@@ -226,11 +224,10 @@ class AIService
 	public function PerformSystemInstruction(string $message, string $sInstructionName): string
 	{
 		$systemInstruction = $this->aSystemInstructions[$sInstructionName] ?? $this->aSystemInstructions['default'];
-		if($sInstructionName === 'translate')
-		{
+		if ($sInstructionName === 'translate') {
 			$sLanguage = Dict::GetUserLanguage();
 			if (!in_array($sLanguage, $this->aLanguages)) {
-				throw new AIResponseException("Invalid locale identifer \"$sLanguage\", valid locales :" .json_encode($this->aLanguages));
+				throw new AIResponseException("Invalid locale identifer \"$sLanguage\", valid locales :".json_encode($this->aLanguages));
 			}
 			$systemInstruction = sprintf($systemInstruction, $sLanguage);
 		}
@@ -243,7 +240,7 @@ class AIService
 	 * @return string
 	 * @throws AIResponseException
 	 */
-	public function GetCompletion(string $sMessage, string $sSystemInstruction = '') : string
+	public function GetCompletion(string $sMessage, string $sSystemInstruction = ''): string
 	{
 		return AIBaseHelper::removeThinkTag($this->oAIEngine->GetCompletion($sMessage, $sSystemInstruction));
 	}
@@ -317,15 +314,19 @@ class AIService
 					// Check if system message is in whitelist (if provided)
 					if ($aAllowedSystemMessages === null) {
 						// Default mode: Reject all OTHER system messages (not the official one)
-						IssueLog::Warning("System message in user history detected and rejected (security).",
-										 AIBaseHelper::MODULE_CODE,
-										 ['content_preview' => substr($aEntry['content'], 0, 50)]);
+						IssueLog::Warning(
+							"System message in user history detected and rejected (security).",
+							AIBaseHelper::MODULE_CODE,
+							['content_preview' => substr($aEntry['content'], 0, 50)]
+						);
 						continue; // Skip
 					} elseif (!in_array($aEntry['content'], $aAllowedSystemMessages, true)) {
 						// Whitelist mode: Reject system messages NOT in whitelist
-						IssueLog::Warning("System message not in whitelist, rejected (security).",
-										 AIBaseHelper::MODULE_CODE,
-										 ['content_preview' => substr($aEntry['content'], 0, 50)]);
+						IssueLog::Warning(
+							"System message not in whitelist, rejected (security).",
+							AIBaseHelper::MODULE_CODE,
+							['content_preview' => substr($aEntry['content'], 0, 50)]
+						);
 						continue; // Skip
 					}
 					// If we reach here: System message is in whitelist -> add it
@@ -342,8 +343,10 @@ class AIService
 					$aLlphantHistory[] = Message::assistant($aEntry['content']);
 					$aCleanHistory[] = $aEntry; // Add to clean history
 				} else {
-					IssueLog::Warning("Invalid role '{$aEntry['role']}' in conversation history, skipping entry.",
-									 AIBaseHelper::MODULE_CODE);
+					IssueLog::Warning(
+						"Invalid role '{$aEntry['role']}' in conversation history, skipping entry.",
+						AIBaseHelper::MODULE_CODE
+					);
 				}
 			}
 		}
@@ -356,22 +359,22 @@ class AIService
 			// Text response: exit loop
 			if (is_string($result)) {
 				$sResponseString = $result;
-				IssueLog::Debug(__METHOD__ . ": Final response after $iRound tool round(s).", AIBaseHelper::MODULE_CODE);
+				IssueLog::Debug(__METHOD__.": Final response after $iRound tool round(s).", AIBaseHelper::MODULE_CODE);
 				break;
 			}
 
 			// FunctionInfo[]: Execute tools, add results to history
-			IssueLog::Debug(__METHOD__ . ": Tool round $iRound: " . count($result) . " tool(s) requested.", AIBaseHelper::MODULE_CODE);
+			IssueLog::Debug(__METHOD__.": Tool round $iRound: ".count($result)." tool(s) requested.", AIBaseHelper::MODULE_CODE);
 
 			foreach ($result as $oToolCall) {
 				try {
 					$toolResult = $oToolCall->call();
 				} catch (\Throwable $e) {
-					$toolResult = "Error executing tool '{$oToolCall->name}': " . $e->getMessage();
-					IssueLog::Warning(__METHOD__ . ": Tool '{$oToolCall->name}' failed: " . $e->getMessage(), AIBaseHelper::MODULE_CODE);
+					$toolResult = "Error executing tool '{$oToolCall->name}': ".$e->getMessage();
+					IssueLog::Warning(__METHOD__.": Tool '{$oToolCall->name}' failed: ".$e->getMessage(), AIBaseHelper::MODULE_CODE);
 				}
 
-				IssueLog::Debug(__METHOD__ . ": Tool '{$oToolCall->name}' returned: " . substr((string)$toolResult, 0, 200), AIBaseHelper::MODULE_CODE);
+				IssueLog::Debug(__METHOD__.": Tool '{$oToolCall->name}' returned: ".substr((string)$toolResult, 0, 200), AIBaseHelper::MODULE_CODE);
 
 				// Add tool call and result as messages to the history
 				$aNewMessages = $oToolCall->asOpenAIMessages($toolResult);
@@ -381,7 +384,7 @@ class AIService
 
 		// Safety: Max rounds reached without final text response
 		if ($sResponseString === '' && $iRound >= $this->iMaxToolRounds) {
-			IssueLog::Warning(__METHOD__ . ": Max tool rounds (" . $this->iMaxToolRounds . ") reached, forcing text response.", AIBaseHelper::MODULE_CODE);
+			IssueLog::Warning(__METHOD__.": Max tool rounds (".$this->iMaxToolRounds.") reached, forcing text response.", AIBaseHelper::MODULE_CODE);
 			// Call without tools to force a text response
 			$sResponseString = $this->oAIEngine->GetNextTurn($aLlphantHistory, []);
 			if (!is_string($sResponseString)) {
@@ -413,10 +416,8 @@ class AIService
 		$oInterfaceDiscovery = InterfaceDiscovery::GetInstance();
 		$aAIEngineClasses = $oInterfaceDiscovery->FindItopClasses(iAIEngineInterface::class);
 		/** @var class-string<iAIEngineInterface> $sAIEngineClass */
-		foreach ($aAIEngineClasses as $sAIEngineClass)
-		{
-			if ($sAIEngineName === $sAIEngineClass::GetEngineName())
-			{
+		foreach ($aAIEngineClasses as $sAIEngineClass) {
+			if ($sAIEngineName === $sAIEngineClass::GetEngineName()) {
 				$sDesiredAIEngineClass = $sAIEngineClass;
 				break;
 			}
@@ -456,4 +457,3 @@ class AIService
 		return $this->aDiscoveredTools;
 	}
 }
-
