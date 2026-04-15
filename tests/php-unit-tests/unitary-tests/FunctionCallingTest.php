@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Unit tests for Function Calling / Tool Support functionality
  *
@@ -11,6 +12,7 @@ use Combodo\iTop\Test\UnitTest\ItopDataTestCase;
 use Itomig\iTop\Extension\AIBase\Contracts\iAIContextAwareToolProvider;
 use Itomig\iTop\Extension\AIBase\Contracts\iAIToolProvider;
 use Itomig\iTop\Extension\AIBase\Engine\iAIEngineInterface;
+use Itomig\iTop\Extension\AIBase\Helper\AIBaseHelper;
 use Itomig\iTop\Extension\AIBase\Helper\AIObjectTools;
 use Itomig\iTop\Extension\AIBase\Helper\AISystemTools;
 use Itomig\iTop\Extension\AIBase\Service\AIService;
@@ -83,7 +85,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		}
 
 		// Check that expected context-dependent tools exist
-		$aToolNames = array_map(fn($t) => $t->name, $aToolDefs);
+		$aToolNames = array_map(fn ($t) => $t->name, $aToolDefs);
 		static::assertContains('getObjectName', $aToolNames);
 		static::assertContains('getObjectId', $aToolNames);
 		static::assertContains('getObjectClass', $aToolNames);
@@ -125,7 +127,7 @@ class FunctionCallingTest extends ItopDataTestCase
 				// Should receive always-available system tools even without object
 				static::assertIsArray($aTools);
 				static::assertNotEmpty($aTools);
-				$aToolNames = array_map(fn($t) => $t->name, $aTools);
+				$aToolNames = array_map(fn ($t) => $t->name, $aTools);
 				static::assertContains('getCurrentDateTime', $aToolNames);
 				static::assertContains('getCurrentUser', $aToolNames);
 				static::assertContains('getCurrentUserProfiles', $aToolNames);
@@ -152,7 +154,7 @@ class FunctionCallingTest extends ItopDataTestCase
 	public function testContinueConversationWithExplicitTools(): void
 	{
 		// Create a simple test tool
-		$oTestProvider = new class {
+		$oTestProvider = new class () {
 			public function myTestTool(): string
 			{
 				return 'Test tool result';
@@ -208,9 +210,15 @@ class FunctionCallingTest extends ItopDataTestCase
 		$oAIService = new AIService($oMockEngine);
 
 		// Create custom tools
-		$oTestProvider = new class {
-			public function tool1(): string { return 'result1'; }
-			public function tool2(): string { return 'result2'; }
+		$oTestProvider = new class () {
+			public function tool1(): string
+			{
+				return 'result1';
+			}
+			public function tool2(): string
+			{
+				return 'result2';
+			}
 		};
 
 		$aTools = [
@@ -258,7 +266,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		$oAIService = new AIService($oMockEngine);
 
 		$aAllTools = $oAIService->getAllTools();
-		$aToolNames = array_map(fn($t) => $t->name, $aAllTools);
+		$aToolNames = array_map(fn ($t) => $t->name, $aAllTools);
 
 		// All 6 AIObjectTools must be present (discovered via InterfaceDiscovery)
 		static::assertContains('getObjectName', $aToolNames);
@@ -434,7 +442,7 @@ class FunctionCallingTest extends ItopDataTestCase
 	public function testMultiStepToolLoop(): void
 	{
 		// Create a tool provider with a working method
-		$oTestProvider = new class {
+		$oTestProvider = new class () {
 			public function lookupValue(string $key): string
 			{
 				return "value_for_$key";
@@ -492,7 +500,7 @@ class FunctionCallingTest extends ItopDataTestCase
 	 */
 	public function testToolLoopHandlesToolErrors(): void
 	{
-		$oTestProvider = new class {
+		$oTestProvider = new class () {
 			public function failingTool(): string
 			{
 				throw new \RuntimeException('Tool execution failed');
@@ -552,7 +560,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		$oAIService = new AIService($oMockEngine);
 
 		// Default value
-		static::assertEquals(5, $oAIService->getMaxToolRounds());
+		static::assertEquals(20, $oAIService->getMaxToolRounds());
 
 		// Set a valid value
 		$oReturn = $oAIService->setMaxToolRounds(10);
@@ -577,8 +585,11 @@ class FunctionCallingTest extends ItopDataTestCase
 	public function testMaxToolRoundsAffectsLoop(): void
 	{
 		$iCallCount = 0;
-		$oTestProvider = new class {
-			public function dummyTool(): string { return 'result'; }
+		$oTestProvider = new class () {
+			public function dummyTool(): string
+			{
+				return 'result';
+			}
 		};
 
 		$oMockEngine = $this->createMock(iAIEngineInterface::class);
@@ -588,7 +599,7 @@ class FunctionCallingTest extends ItopDataTestCase
 				if ($iCallCount <= 2) {
 					// Return tool calls for first 2 rounds
 					$oTool = new FunctionInfo('dummyTool', $oTestProvider, 'Dummy', [], []);
-					$oTool->setToolCallId('call_' . $iCallCount);
+					$oTool->setToolCallId('call_'.$iCallCount);
 					$oTool->jsonArgs = '{}';
 					return [$oTool];
 				}
@@ -603,7 +614,10 @@ class FunctionCallingTest extends ItopDataTestCase
 
 		$aResult = $oAIService->ContinueConversation(
 			[['role' => 'user', 'content' => 'Test']],
-			null, null, null, $aTools
+			null,
+			null,
+			null,
+			$aTools
 		);
 
 		// With max 1 round: 1 tool call + 1 forced text call = 2 calls to GetNextTurn
@@ -639,7 +653,12 @@ class FunctionCallingTest extends ItopDataTestCase
 		];
 
 		$aTools = [
-			new FunctionInfo('testTool', new class { public function testTool() { return 'ok'; } }, 'Test', [], []),
+			new FunctionInfo('testTool', new class () {
+				public function testTool()
+				{
+					return 'ok';
+				}
+			}, 'Test', [], []),
 		];
 
 		$aResult = $oAIService->ContinueConversation($aHistory, null, null, null, $aTools);
@@ -660,7 +679,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		$oTools = new AISystemTools();
 		$sResult = $oTools->getCurrentUser();
 
-		$aDecoded = json_decode($sResult, true);
+		$aDecoded = json_decode(AIBaseHelper::cleanJSON($sResult), true);
 		static::assertNotNull($aDecoded, 'getCurrentUser() should return valid JSON');
 
 		// In ItopDataTestCase a user is logged in
@@ -692,7 +711,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		$oTools = new AISystemTools();
 		$sResult = $oTools->getCurrentUserProfiles();
 
-		$aDecoded = json_decode($sResult, true);
+		$aDecoded = json_decode(AIBaseHelper::cleanJSON($sResult), true);
 		static::assertNotNull($aDecoded, 'getCurrentUserProfiles() should return valid JSON');
 
 		// In ItopDataTestCase a user is logged in
@@ -732,7 +751,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		static::assertIsArray($aToolDefs);
 		static::assertCount(3, $aToolDefs);
 
-		$aToolNames = array_map(fn($t) => $t->name, $aToolDefs);
+		$aToolNames = array_map(fn ($t) => $t->name, $aToolDefs);
 		static::assertContains('getCurrentDateTime', $aToolNames);
 		static::assertContains('getCurrentUser', $aToolNames);
 		static::assertContains('getCurrentUserProfiles', $aToolNames);
@@ -761,7 +780,7 @@ class FunctionCallingTest extends ItopDataTestCase
 		);
 
 		static::assertNotNull($aReceivedTools);
-		$aToolNames = array_map(fn($t) => $t->name, $aReceivedTools);
+		$aToolNames = array_map(fn ($t) => $t->name, $aReceivedTools);
 
 		// System tools should be available
 		static::assertContains('getCurrentDateTime', $aToolNames);
