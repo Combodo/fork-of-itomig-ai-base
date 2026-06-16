@@ -23,6 +23,9 @@
 
 namespace Itomig\iTop\Extension\AIBase\Engine;
 
+use GuzzleHttp\Exception\ConnectException;
+use Itomig\iTop\Extension\AIBase\Exception\AINetworkException;
+use LLPhant\Chat\ChatInterface;
 use LLPhant\OllamaConfig;
 use LLPhant\Chat\OllamaChat;
 
@@ -39,7 +42,7 @@ class OllamaAIEngine extends GenericAIEngine implements iAIEngineInterface
 	/**
 	 * @inheritDoc
 	 */
-	public static function GetEngine($configuration): OllamaAIEngine
+	public static function GetEngine(array $configuration): OllamaAIEngine
 	{
 		$url = $configuration['url'] ?? 'https://api.openai.com/v1/chat/completions';
 		$model = $configuration['model'] ?? 'gpt-3.5-turbo';
@@ -55,33 +58,38 @@ class OllamaAIEngine extends GenericAIEngine implements iAIEngineInterface
 	 * @param string $systemInstruction optional - the System prompt (if a specific one is required)
 	 * @return string the textual response
 	 */
-	public function GetCompletion($message, $systemInstruction = '') : string
+	public function GetCompletion(string $message, string $systemInstruction = '') : string
 	{
-
-		$config = new OllamaConfig();
-		//$config->apiKey = $this->apiKey;
-		$config->url = $this->url;
-		$config->model = $this->model;
-
-		/*
-		set temperature to 0.4 (conservative answers) and the context window to 16384 tokens.
-		These settings are suitable for most pure-text scenarios even with smaller, Q4 LLMs and
-		limited VRAM (e.g. 12 GB)
-		TODO make these configurable in a future version (?)
-		*/
-		$config->modelOptions = array (
-			'num_ctx' => '16384',
-			'temperature' => '0.4',
-		);
-		$chat = new OllamaChat($config);
+		$oChat = $this->createChatInstance();
 		\IssueLog::Debug("OllamaAIEngine: about to set system instruction: ".$systemInstruction);
-		$chat->setSystemMessage($systemInstruction);
-		$response = $chat->generateText($message);
+		$oChat->setSystemMessage($systemInstruction);
+		try {
+			$response = $oChat->generateText($message);
+		} catch (\LLPhant\Exception\HttpException $e) {
+			throw $this->classifyHttpException($e);
+		} catch (ConnectException $e) {
+			throw new AINetworkException('AI engine unreachable: ' . $e->getMessage(), 0, $e);
+		} catch (\Throwable $e) {
+			throw new AINetworkException('Unexpected AI engine error: ' . $e->getMessage(), 0, $e);
+		}
 		\IssueLog::Debug(__METHOD__);
 		\IssueLog::Debug($response);
-
-		// TODO error handling in LLPhant ( #2) ?
 		return $response;
 	}
 
+	/**
+	 * Creates and returns an instance of OllamaChat.
+	 *
+	 * @return ChatInterface
+	 */
+	protected function createChatInstance(): ChatInterface
+	{
+		$oConfig = new OllamaConfig();
+		//$oConfig->apiKey = $this->apiKey;  // Ollama doesn't need API key
+		$oConfig->url = $this->url;
+		$oConfig->model = $this->model;
+
+		$oChat = new OllamaChat($oConfig);
+		return $oChat;
+	}
 }

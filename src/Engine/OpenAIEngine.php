@@ -23,7 +23,10 @@
 
 namespace Itomig\iTop\Extension\AIBase\Engine;
 
+use GuzzleHttp\Exception\ConnectException;
 use IssueLog;
+use Itomig\iTop\Extension\AIBase\Exception\AINetworkException;
+use LLPhant\Chat\ChatInterface;
 use LLPhant\OpenAIConfig;
 use LLPhant\Chat\OpenAIChat;
 
@@ -41,7 +44,7 @@ class OpenAIEngine extends GenericAIEngine implements iAIEngineInterface
 	/**
 	 * @inheritDoc
 	 */
-	public static function GetEngine($configuration): OpenAIEngine
+	public static function GetEngine(array $configuration): OpenAIEngine
 	{
 		$url = $configuration['url'] ?? '';
 		$model = $configuration['model'] ?? 'gpt-4o-mini';
@@ -57,30 +60,43 @@ class OpenAIEngine extends GenericAIEngine implements iAIEngineInterface
 	 * @param string $systemInstruction optional - the System prompt (if a specific one is required)
 	 * @return string the textual response
 	 */
-	public function GetCompletion($message, $systemInstruction = '') : string
+	public function GetCompletion(string $message, string $systemInstruction = '') : string
 	{
-
 		IssueLog::Debug("OpenAIEngine: getCompletions() called");
-		$config = new OpenAIConfig();
-		$config->apiKey = $this->apiKey;
-		if(!empty($this->url)) {
-			$config->url = $this->url;
-		}
-		if(!empty($this->model)) {
-			$config->model = $this->model;
-		}
-		$chat = new OpenAIChat($config);
-        $chat->setSystemMessage ($systemInstruction);
+		$oChat = $this->createChatInstance();
+		$oChat->setSystemMessage($systemInstruction);
 
 		IssueLog::Debug("OpenAIEngine: system Message set, next step: generateText()..");
-		$response = $chat->generateText($message);
+		try {
+			$response = $oChat->generateText($message);
+		} catch (\LLPhant\Exception\HttpException $e) {
+			throw $this->classifyHttpException($e);
+		} catch (ConnectException $e) {
+			throw new AINetworkException('AI engine unreachable: ' . $e->getMessage(), 0, $e);
+		} catch (\Throwable $e) {
+			throw new AINetworkException('Unexpected AI engine error: ' . $e->getMessage(), 0, $e);
+		}
 		IssueLog::Debug(__METHOD__);
 		IssueLog::Debug($response);
 		return $response;
-
-		// TODO error handling in LLPhant ( #2) ?
 	}
 
-
-
+	/**
+	 * Creates and returns an instance of OpenAIChat.
+	 *
+	 * @return ChatInterface
+	 */
+	protected function createChatInstance(): ChatInterface
+	{
+		$oConfig = new OpenAIConfig();
+		$oConfig->apiKey = $this->apiKey;
+		if (!empty($this->url)) {
+			$oConfig->url = $this->url;
+		}
+		if (!empty($this->model)) {
+			$oConfig->model = $this->model;
+		}
+		$oChat = new OpenAIChat($oConfig);
+		return $oChat;
+	}
 }

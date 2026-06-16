@@ -23,28 +23,31 @@
 
 namespace Itomig\iTop\Extension\AIBase\Engine;
 
+use GuzzleHttp\Exception\ConnectException;
+use Itomig\iTop\Extension\AIBase\Exception\AINetworkException;
 use LLPhant\AnthropicConfig;
 use LLPhant\Chat\AnthropicChat;
+use LLPhant\Chat\ChatInterface;
 
 class AnthropicAIEngine extends GenericAIEngine implements iAIEngineInterface
 {
-    /**
-     * @inheritDoc
-     */
-    public static function GetEngineName(): string
-    {
-        return 'AnthropicAI';
-    }
+	/**
+	 * @inheritDoc
+	 */
+	public static function GetEngineName(): string
+	{
+		return 'AnthropicAI';
+	}
 
-    /**
-     * @inheritDoc
-     */
-	public static function GetEngine($configuration): AnthropicAIEngine
+	/**
+	 * @inheritDoc
+	 */
+	public static function GetEngine(array $configuration): AnthropicAIEngine
 	{
 		$url = $configuration['url'] ?? 'https://api.anthropic.com/v1/messages';
 		$model = $configuration['model'] ?? 'claude-3-5-sonnet-latest';
 		$apiKey = $configuration['api_key'] ?? '';
-        return new self($url, $apiKey, $model);
+		return new self($url, $apiKey, $model);
 	}
 
 	/**
@@ -54,19 +57,34 @@ class AnthropicAIEngine extends GenericAIEngine implements iAIEngineInterface
 	 * @param string $systemInstruction optional - the System prompt (if a specific one is required)
 	 * @return string the textual response
 	 */
-	public function GetCompletion($message, $systemInstruction = '') : string
+	public function GetCompletion(string $message, string $systemInstruction = '') : string
 	{
-
-		$config = new AnthropicConfig($this->model, 4096, array() , $this->apiKey);
-		$chat = new AnthropicChat($config);
-
-		$chat->setSystemMessage ($systemInstruction);
-		$response = $chat->generateText($message);
-
+		$oChat = $this->createChatInstance();
+		$oChat->setSystemMessage($systemInstruction);
+		try {
+			$response = $oChat->generateText($message);
+		} catch (\LLPhant\Exception\HttpException $e) {
+			throw $this->classifyHttpException($e);
+		} catch (ConnectException $e) {
+			throw new AINetworkException('AI engine unreachable: ' . $e->getMessage(), 0, $e);
+		} catch (\Throwable $e) {
+			throw new AINetworkException('Unexpected AI engine error: ' . $e->getMessage(), 0, $e);
+		}
 		\IssueLog::Debug(__METHOD__);
 		\IssueLog::Debug($response);
-
-		// TODO error handling in LLPhant: Catch LLPhantException ( #2) ?
 		return $response;
+	}
+
+	/**
+	 * Creates and returns an instance of AnthropicChat.
+	 *
+	 * @return ChatInterface
+	 */
+	protected function createChatInstance(): ChatInterface
+	{
+		// TODO: maxTokens (4096) should be configurable (see Post-Implementation notes in plan)
+		$oConfig = new AnthropicConfig($this->model, 4096, array(), $this->apiKey);
+		$oChat = new AnthropicChat($oConfig);
+		return $oChat;
 	}
 }

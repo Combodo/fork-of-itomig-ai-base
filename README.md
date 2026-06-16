@@ -169,6 +169,8 @@ The engine layer uses iTop's InterfaceDiscovery system to locate available engin
   - System prompt management with built-in prompts
   - Response cleaning (removes `<think>` tags from reasoning models)
   - JSON markdown block cleanup
+  - Multi-turn conversation support with context retention
+  - Security protection against system message injection
   - Provides both high-level and low-level API methods
 
 ### Helper Classes
@@ -177,6 +179,28 @@ The engine layer uses iTop's InterfaceDiscovery system to locate available engin
   - `cleanJSON(string $sRawString)`: Removes `\`\`\`json\n` and `\n\`\`\`` markers from AI-generated JSON
   - `removeThinkTag(string $sRawString)`: Removes `<think>` tags from reasoning model outputs
   - `stripHTML(string $sString)`: Removes HTML tags and decodes HTML entities
+
+## Security Model
+
+AI-Base is used to process content that may contain attacker-controlled text (ticket descriptions, customer chat messages, object attributes, etc.). The extension applies several defenses against prompt-injection attacks; downstream extensions should be aware of them to avoid undoing them.
+
+### Prompt-injection defenses
+
+- **System-message filtering in conversation history:** `ContinueConversation()` removes any `role: system` entries from the caller-supplied history by default, allowing through only entries whose content is listed in an explicit `$aAllowedSystemMessages` whitelist.
+- **Opt-in function calling:** tools are attached only when the caller passes them explicitly via `$aTools`. Passing `$oObject` for context does **not** auto-attach object tools. `getDefaultTools()` is provided for callers that intentionally want the previously broad default set.
+- **Hardened default system prompt:** the built-in `default` system instruction tells the model to treat any content retrieved from user messages, tool outputs, or iTop object attributes as data rather than instructions, and not to call tools or disclose information based on directives embedded in such content.
+- **Read-only tool set:** the shipped `AIObjectTools` provider exposes read-only methods only. No setter, stimulus, or `DBWrite` call is reachable through function calling.
+- **Tool-round hard cap:** the multi-step tool loop is capped at 20 rounds to bound cost and prevent runaway recursion.
+
+### Known limitations
+
+See issue [#49](../../issues/49) for the full threat model. Currently out of scope in this layer:
+
+- Indirect prompt injection via tool outputs (tool poisoning) is not fully mitigated. Use a narrow, purpose-built `$aTools` list in sensitive contexts instead of `getDefaultTools()`.
+- There is no per-user / per-tool access control. Every caller of `ContinueConversation()` gets the same tool visibility — do not expose tools that read privileged data from low-trust user sessions.
+- User messages and tool outputs are not wrapped in an "untrusted content" delimiter that the system prompt could reference structurally.
+
+Downstream extensions that process untrusted content should also take care not to store raw AI responses (which may contain attacker-shaped payloads) back into fields that a malicious author would then read.
 
 ## Provided Functions
 
@@ -220,6 +244,43 @@ Adds or overrides a system prompt dynamically at runtime.
 - `$sInstructionName`: The name/identifier for the new system prompt
 - `$sInstruction`: The content of the system prompt
 
+### AIService::ContinueConversation()
+
+```php
+public function ContinueConversation(
+    array $aHistory,
+    ?DBObject $oObject = null,
+    ?string $sCustomSystemMessage = null,
+    ?array $aAllowedSystemMessages = null,
+    array $aTools = []
+): array
+```
+
+Continues a multi-turn conversation by maintaining context across multiple exchanges with the AI, with optional function/tool calling.
+
+**Parameters:**
+- `$aHistory`: Array of conversation history. Each entry has `role` (user/assistant) and `content`
+- `$oObject`: (Optional) iTop object context. When set, context-aware tool providers receive it via `setContext()`. Passing `$oObject` does **not** by itself attach any tools — see `$aTools`.
+- `$sCustomSystemMessage`: (Optional) Custom system message for this turn
+- `$aAllowedSystemMessages`: (Optional) Whitelist of allowed system messages from history
+  - `null` (default): System messages in history are filtered
+  - `array`: Only system messages with content in this array are allowed
+- `$aTools`: (Optional) Array of `FunctionInfo` objects for function calling. **Opt-in by default (empty array):** no tools are attached unless the caller passes them explicitly. This reduces the prompt-injection surface for use cases that only need text processing (e.g. summarization). Callers that want the full discovered tool set can pass `$oAIService->getDefaultTools($oObject)`.
+
+**Returns:** Array with two keys:
+- `response`: The AI's response (cleaned, without internal reasoning tags)
+- `history`: Updated conversation history (including the new response)
+
+**Security:** System messages from user-provided history are filtered by default to prevent prompt injection. Tools are opt-in to avoid silently exposing them to injected instructions in user-controlled content. See the [Security Model](#security-model) section and issue #49 for the full threat model.
+
+### AIService::getDefaultTools()
+
+```php
+public function getDefaultTools(?DBObject $oObject = null): array
+```
+
+Convenience helper that returns the broad default tool set: all always-available tools (`AISystemTools`), plus all context-dependent tools (`AIObjectTools`) when an object is passed. Use together with `ContinueConversation()` when the full discovered tool set is actually desired; prefer a narrower hand-picked list otherwise.
+
 ## Code Examples
 
 ### Basic Usage
@@ -262,6 +323,78 @@ $aCleanedResponse = json_decode(AIBaseHelper::cleanJSON($sRawResponse), true);
 
 // Strip HTML from responses
 $sCleanText = (new AIBaseHelper())->stripHTML($htmlString);
+```
+
+### Multi-Turn Conversations
+
+```php
+use Itomig\iTop\Extension\AIBase\Service\AIService;
+
+$oAIService = new AIService();
+
+// Start a conversation
+$aHistory = [];
+
+// Turn 1: User introduces themselves
+$aHistory[] = ['role' => 'user', 'content' => 'My name is Alice.'];
+$aResult = $oAIService->ContinueConversation($aHistory);
+echo $aResult['response']; // AI acknowledges
+
+// Update history with AI's response
+$aHistory = $aResult['history'];
+
+// Turn 2: Ask a question that requires previous context
+$aHistory[] = ['role' => 'user', 'content' => 'What is my name?'];
+$aResult = $oAIService->ContinueConversation($aHistory);
+echo $aResult['response']; // AI should remember "Alice"
+
+// Update history again
+$aHistory = $aResult['history'];
+
+// Turn 3: Continue the conversation
+$aHistory[] = ['role' => 'user', 'content' => 'Thank you!'];
+$aResult = $oAIService->ContinueConversation($aHistory);
+```
+
+#### Multi-Turn with Custom System Message
+
+```php
+$oAIService = new AIService();
+
+// Use a custom system message for the conversation
+$sSystemMessage = "You are a technical support assistant. Be helpful and professional.";
+
+$aHistory = [
+    ['role' => 'user', 'content' => 'I need help with my server.']
+];
+
+$aResult = $oAIService->ContinueConversation($aHistory, null, $sSystemMessage);
+echo $aResult['response'];
+```
+
+#### Using Whitelisted System Messages
+
+```php
+$oAIService = new AIService();
+
+// Define allowed context messages
+$aAllowedSystemMessages = [
+    'Context: Technical support ticket',
+    'Context: High priority customer'
+];
+
+$aHistory = [
+    ['role' => 'system', 'content' => 'Context: Technical support ticket'],  // Allowed
+    ['role' => 'user', 'content' => 'My application crashed.']
+];
+
+$aResult = $oAIService->ContinueConversation(
+    $aHistory,
+    null,
+    null,
+    $aAllowedSystemMessages
+);
+// The context message is preserved in the conversation
 ```
 
 ### Using a Custom Engine
@@ -323,9 +456,7 @@ A comprehensive tutorial demonstrating how to build AI-powered features for iTop
 
 - **Task-Specific Engines**: Currently, it is not possible to configure different LLMs or different engines depending on the task. All requests use the single configured engine.
 
-- **Advanced Parameters**: Some AI providers support parameters like `temperature` and `num_ctx` to fine-tune LLM behavior. These are currently not configurable. For Ollama, these are fixed at:
-  - `temperature: 0.4`
-  - `num_ctx: 16384`
+- **Advanced Parameters**: Some AI providers support parameters like `temperature` and `num_ctx` to fine-tune LLM behavior. These are currently not configurable through the iTop configuration. See [#41](https://github.com/itomig-de/itomig-ai-base/issues/41) for planned improvements.
 
 - **Async Interactions**: There is currently no support for asynchronous interaction with LLMs. This may be added in a later version.
 
@@ -437,6 +568,16 @@ If adding additional response processing, add it to the `AIBaseHelper` class.
 - **Vendor Dependencies**: `vendor/` (committed to repository, standard for iTop extensions)
 
 ## Version History
+
+### 26.1.1 (2026-02-20)
+- Add multi-turn conversation support with security protection against prompt injection
+- Fix #32: MistralAIEngine uses non-existent MistralAIConfig class
+- Remove hardcoded Ollama model_options (temperature, num_ctx)
+- Code cleanup: Add type hints, remove unused imports, fix PSR-12 compliance
+
+### 26.1.0 (2025-12-29)
+- Major refactoring and diagnostics separation
+- Update LLPhant library (compatible with iTop 3.2)
 
 ### 25.3.1 (2025-08-27)
 - Improved AIService constructor handling for engine and system prompts

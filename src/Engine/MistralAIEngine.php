@@ -23,7 +23,10 @@
 
 namespace Itomig\iTop\Extension\AIBase\Engine;
 
-use LLPhant\OpenAIConfig;
+use GuzzleHttp\Exception\ConnectException;
+use Itomig\iTop\Extension\AIBase\Exception\AINetworkException;
+use LLPhant\Chat\ChatInterface;
+use LLPhant\MistralAIConfig;
 use LLPhant\Chat\MistralAIChat;
 
 class MistralAIEngine extends GenericAIEngine implements iAIEngineInterface
@@ -40,13 +43,13 @@ class MistralAIEngine extends GenericAIEngine implements iAIEngineInterface
 	/**
 	 * @inheritDoc
 	 */
-	public static function GetEngine($configuration): MistralAIEngine
+	public static function GetEngine(array $configuration): MistralAIEngine
 	{
 		$url = $configuration['url'] ?? 'https://api.mistral.ai/v1/chat/completions';
 		$model = $configuration['model'] ?? 'mistral-large-latest';
 		$apiKey = $configuration['api_key'] ?? '';
 
-        return new self($url, $apiKey, $model);
+		return new self($url, $apiKey, $model);
 	}
 
 	/**
@@ -56,22 +59,36 @@ class MistralAIEngine extends GenericAIEngine implements iAIEngineInterface
 	 * @param string $systemInstruction optional - the System prompt (if a specific one is required)
 	 * @return string the textual response
 	 */
-	public function GetCompletion($message, $systemInstruction = '') : string
+	public function GetCompletion(string $message, string $systemInstruction = '') : string
 	{
-		$config = new OpenAIConfig();
-		$config->apiKey = $this->apiKey;
-		$config->url = $this->url;
-		$config->model=$this->model;
-		$chat = new MistralAIChat($config);
-
-		$chat->setSystemMessage ($systemInstruction);
-		$response = $chat->generateText($message);
-
+		$oChat = $this->createChatInstance();
+		$oChat->setSystemMessage($systemInstruction);
+		try {
+			$response = $oChat->generateText($message);
+		} catch (\LLPhant\Exception\HttpException $e) {
+			throw $this->classifyHttpException($e);
+		} catch (ConnectException $e) {
+			throw new AINetworkException('AI engine unreachable: ' . $e->getMessage(), 0, $e);
+		} catch (\Throwable $e) {
+			throw new AINetworkException('Unexpected AI engine error: ' . $e->getMessage(), 0, $e);
+		}
 		\IssueLog::Debug(__METHOD__);
 		\IssueLog::Debug($response);
-
-		// TODO error handling in LLPhant (#2 )
 		return $response;
 	}
 
+	/**
+	 * Creates and returns an instance of MistralAIChat.
+	 *
+	 * @return ChatInterface
+	 */
+	protected function createChatInstance(): ChatInterface
+	{
+		$oConfig = new MistralAIConfig();
+		$oConfig->apiKey = $this->apiKey;
+		$oConfig->url = $this->url;
+		$oConfig->model = $this->model;
+		$oChat = new MistralAIChat($oConfig);
+		return $oChat;
+	}
 }
