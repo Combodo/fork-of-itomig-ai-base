@@ -49,6 +49,8 @@ abstract class GenericAIEngine implements iAIEngineInterface
 	 */
 	protected $model;
 
+	protected $lastResponse = null;
+
 	public function __construct(string $url, string $apiKey, string $model)
 	{
 		$this->url = $url;
@@ -63,6 +65,30 @@ abstract class GenericAIEngine implements iAIEngineInterface
 	 * @return ChatInterface
 	 */
 	abstract protected function createChatInstance(): ChatInterface;
+
+	public function getLastResponse()
+	{
+		return $this->lastResponse;
+	}
+
+	protected function resetLastResponse(): void
+	{
+		$this->lastResponse = null;
+	}
+
+	protected function captureLastResponse(ChatInterface $oChat): void
+	{
+		if (!method_exists($oChat, 'getLastResponse')) {
+			$this->lastResponse = null;
+			return;
+		}
+
+		try {
+			$this->lastResponse = $oChat->getLastResponse();
+		} catch (\Throwable $e) {
+			$this->lastResponse = null;
+		}
+	}
 
 	/**
 	 * Generic implementation for handling a conversational turn.
@@ -125,7 +151,9 @@ abstract class GenericAIEngine implements iAIEngineInterface
 		}
 
 		IssueLog::Debug(__METHOD__ . ": Calling AI Engine with a conversation history of " . count($aMessageHistory) . " turns.", AIBaseHelper::MODULE_CODE);
+		$this->resetLastResponse();
 		$result = $oChat->generateChatOrReturnFunctionCalled($aMessageHistory);
+		$this->captureLastResponse($oChat);
 
 		if (is_string($result)) {
 			$sResponsePreview = strlen($result) > 500 ? substr($result, 0, 500) . '...[truncated]' : $result;

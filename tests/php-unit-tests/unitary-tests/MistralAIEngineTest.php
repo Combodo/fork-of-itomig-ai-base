@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @license     http://opensource.org/licenses/AGPL-3.0
  */
@@ -13,7 +14,7 @@ class MistralAIEngineTest extends ItopTestCase
 	protected function setUp(): void
 	{
 		parent::setUp();
-		$this->RequireOnceItopFile('/env-production/itomig-ai-base/vendor/autoload.php');
+		$this->RequireOnceItopFile('/env-production/fork-of-itomig-ai-base/vendor/autoload.php');
 	}
 
 	/**
@@ -25,7 +26,7 @@ class MistralAIEngineTest extends ItopTestCase
 		$configuration = [
 			'url' => 'https://api.mistral.ai/v1/chat/completions',
 			'model' => 'mistral-large-latest',
-			'api_key' => 'test-api-key'
+			'api_key' => 'test-api-key',
 		];
 
 		$engine = MistralAIEngine::GetEngine($configuration);

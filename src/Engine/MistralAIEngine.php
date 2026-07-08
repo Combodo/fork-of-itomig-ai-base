@@ -61,7 +61,9 @@ class MistralAIEngine extends GenericAIEngine implements iAIEngineInterface
 	{
 		$oChat = $this->createChatInstance();
 		$oChat->setSystemMessage($systemInstruction);
+		$this->resetLastResponse();
 		$response = $oChat->generateText($message);
+		$this->captureLastResponse($oChat);
 
 		\IssueLog::Debug(__METHOD__);
 		\IssueLog::Debug($response);

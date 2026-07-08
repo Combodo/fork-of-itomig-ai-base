@@ -1,4 +1,5 @@
 <?php
+
 /*
  * @copyright Copyright (C) 2024 ITOMIG GmbH
  * @license http://opensource.org/licenses/AGPL-3.0
@@ -32,14 +33,14 @@ interface iAIEngineInterface
 	 * Get name of the engine
 	 * @return string
 	 */
-	public static function GetEngineName() : string;
+	public static function GetEngineName(): string;
 
 	/**
 	 * Create an instance of the current engine
 	 * @param array $configuration
 	 * @return iAIEngineInterface
 	 */
-	public static function GetEngine(array $configuration) : iAIEngineInterface;
+	public static function GetEngine(array $configuration): iAIEngineInterface;
 
 	/**
 	 * Perform prompt and return result
@@ -47,7 +48,12 @@ interface iAIEngineInterface
 	 * @param string $systemInstruction
 	 * @return string
 	 */
-	public function GetCompletion(string $message, string $systemInstruction = '') : string;
+	public function GetCompletion(string $message, string $systemInstruction = ''): string;
+
+	/**
+	 * Return the raw response object from the last engine call when supported.
+	 */
+	public function getLastResponse();
 
 	/**
 	 * Generates the next response in a conversation given the full message history.

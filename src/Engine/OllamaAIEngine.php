@@ -61,7 +61,9 @@ class OllamaAIEngine extends GenericAIEngine implements iAIEngineInterface
 		$oChat = $this->createChatInstance();
 		\IssueLog::Debug("OllamaAIEngine: about to set system instruction: ".$systemInstruction);
 		$oChat->setSystemMessage($systemInstruction);
+		$this->resetLastResponse();
 		$response = $oChat->generateText($message);
+		$this->captureLastResponse($oChat);
 		\IssueLog::Debug(__METHOD__);
 		\IssueLog::Debug($response);
 

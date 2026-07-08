@@ -65,7 +65,9 @@ class OpenAIEngine extends GenericAIEngine implements iAIEngineInterface
 		$oChat->setSystemMessage($systemInstruction);
 
 		IssueLog::Debug("OpenAIEngine: system Message set, next step: generateText()..");
+		$this->resetLastResponse();
 		$response = $oChat->generateText($message);
+		$this->captureLastResponse($oChat);
 		IssueLog::Debug(__METHOD__);
 		IssueLog::Debug($response);
 		return $response;
